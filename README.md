@@ -51,14 +51,16 @@ git clone https://github.com/aidan-mitchell-645/aybabtu.git
 cd aybabtu && ./install.sh          # installs Pillow, adds you to 'video' grp
 python3 ~/aybabtu/aybabtu.py        # run on the console (tty1)
 ```
-### Start on boot (pwnagotchi-style)
+### Start automatically on login (recommended)
 ```bash
-sudo ./enable-boot.sh        # installs a systemd service that owns tty1
-# undo: sudo ./enable-boot.sh --disable
+./enable-autostart.sh        # runs it when you log in on the Pi screen (tty1)
+# undo: ./enable-autostart.sh --disable
 ```
-This makes AYBABTU launch at boot and take over the Pi's screen, with
-"drop to terminal" and tool output still working on-device. SSH keeps working
-independently so you can always manage it (`sudo systemctl stop aybabtu`).
+Simple and robust: it adds a guarded line to your shell config so AYBABTU
+launches on the physical console at login (SSH logins are unaffected). The
+framebuffer is always up by then, and if the app exits/crashes you just land
+on a normal shell — no bricked boot. Quit with `q` for a shell; it restarts
+next login.
 
 ### Preview without hardware (over SSH / laptop)
 ```bash
