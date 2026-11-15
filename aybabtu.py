@@ -25,7 +25,6 @@ from pathlib import Path
 
 import actions
 import display
-import faces
 import gfx
 
 VERSION = "0.3"
@@ -64,10 +63,6 @@ def refresh_state(state):
     state["batt_pct"] = hw.battery_percent()
 
 
-def new_taunt(mood):
-    return faces.get(mood)[1][:17]
-
-
 def run_action(disp, kb, state, item):
     """Drop to the text console, run the action, return to the pixel UI."""
     act = item["action"]
@@ -88,34 +83,32 @@ def run_action(disp, kb, state, item):
         kb.cbreak()
         if state["mood"] == "scanning":   # don't get stuck mid-scan face
             state["mood"] = "idle"
-        state["say"] = new_taunt(state["mood"])
 
 
 def main():
     disp = display.Display()
     kb = display.Keyboard()
+    size = disp.logical_size
     items = load_menu()
     state = {"mood": "boot", "ip": "...", "iface": "...", "batt_pct": None,
-             "clock": "--:--", "menu": items, "sel": 0, "say": "BOOTING",
+             "clock": "--:--", "menu": items, "sel": 0, "say": None,
              "frame": 0, "scanlines": os.environ.get("AYBABTU_NOSCAN") != "1"}
     refresh_state(state)
 
     boot_until = time.time() + 1.6
-    last_status = last_say = time.time()
+    last_status = time.time()
     tick = 0
     try:
         while True:
             now = time.time()
             if state["mood"] == "boot" and now > boot_until:
-                state["mood"] = "idle"; state["say"] = new_taunt("idle")
+                state["mood"] = "idle"
             state["clock"] = time.strftime("%H:%M")
             state["frame"] = tick
             if now - last_status > 10:
                 refresh_state(state); last_status = now
-            if now - last_say > 3.5:
-                state["say"] = new_taunt(state["mood"]); last_say = now
 
-            disp.show(gfx.compose(state))
+            disp.show(gfx.compose(state, size))
 
             key = kb.get(timeout=0.4)
             tick += 1
@@ -129,7 +122,6 @@ def main():
                 state["sel"] = (state["sel"] + 1) % len(items)
             elif key in ("ENTER", "RIGHT", "l"):
                 run_action(disp, kb, state, items[state["sel"]])
-                last_say = 0
             elif key == "r":
                 refresh_state(state)
             else:
@@ -137,7 +129,6 @@ def main():
                     if it["key"] == key:
                         state["sel"] = i
                         run_action(disp, kb, state, it)
-                        last_say = 0
                         break
     except (KeyboardInterrupt, SystemExit):
         pass

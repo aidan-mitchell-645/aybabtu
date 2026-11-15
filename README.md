@@ -1,15 +1,15 @@
 # AYBABTU
 
-A pwnagotchi-style **pixel-art** launcher skinned in *All Your Base Are Belong
-To Us*, for a **Beepy** (Pi Zero 2W + BlackBerry keyboard) running Kali. It
-renders a real 400×240 graphical UI straight to the framebuffer — a CATS-cat
-mascot that reacts to what you're doing, an icon menu, a battery glyph and CRT
-scanlines — and wraps the Kali tools behind big buttons.
+A pwnagotchi-style **pixel-art** launcher for a handheld Kali rig (Pi Zero 2W +
+BlackBerry keyboard + small colour TFT), styled after the *Zero Wing / CATS*
+intro. It renders a **portrait** graphical UI straight to the framebuffer — a
+cyber-villain mascot with a glowing cybernetic eye, an icon menu, a battery
+glyph and CRT scanlines — and wraps the Kali tools behind big buttons.
 
 ![AYBABTU](docs/idle.png)
 
-The cat's face changes with its mood: chill when idle, wide-eyed while
-scanning, wired when there are exploits to hunt.
+The mascot's cyber eye changes with its mood: orange when idle (READY), yellow
+with a scan-sweep while scanning, red when there are exploits to hunt.
 
 ## Controls
 up/down or `j`/`k` move · number keys jump · `Enter`/`→` select · `q` quit
@@ -36,7 +36,7 @@ only drops to the text console while a tool actually runs.
 | file          | role                                               |
 |---------------|----------------------------------------------------|
 | `aybabtu.py`  | graphical main loop (framebuffer UI)               |
-| `gfx.py`      | 400×240 pixel-art compositor (mascot, icons, menu) |
+| `gfx.py`      | portrait pixel-art compositor (mascot, icons, menu) |
 | `display.py`  | framebuffer blitter (bpp autodetect) + key input   |
 | `actions.py`  | the button flows (recon→exploit chaining, etc.)    |
 | `campaign.py` | nmap parser → searchsploit lead suggester          |
@@ -61,10 +61,13 @@ AYBABTU_SIM=/tmp/aybabtu python3 aybabtu.py   # writes PNG frames instead
 ## Display tuning
 | env | effect |
 |-----|--------|
+| `AYBABTU_ROTATE=90` | rotate the UI 0/90/180/270 if orientation is wrong |
 | `AYBABTU_INVERT=1` | flip black/white (some mono panels are inverted) |
 | `AYBABTU_FB=/dev/fb1` | use a specific framebuffer |
 | `AYBABTU_NOSCAN=1` | turn off CRT scanlines |
-`python3 display.py` prints the detected framebuffer geometry/bpp.
+`python3 display.py` prints the detected framebuffer geometry/bpp. The UI is
+composed in portrait and auto-rotated onto landscape framebuffers; use
+`AYBABTU_ROTATE` to correct the direction if it comes out sideways/upside-down.
 
 ## Battery gauge (one-time)
 If `DOCTOR` says the gauge is missing, install the Beepy keyboard driver — it

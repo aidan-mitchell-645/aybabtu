@@ -57,7 +57,8 @@ AUTO-START ON BOOT (greets you pwnagotchi-style on tty1):
     WantedBy=multi-user.target
   then: sudo systemctl enable --now aybabtu
 
-DISPLAY TUNING (if colours/orientation look wrong):
+DISPLAY TUNING (if orientation/colours look wrong):
+    AYBABTU_ROTATE=90  rotate UI 0/90/180/270 (fix sideways/upside-down)
     AYBABTU_INVERT=1   flip black/white (some mono panels are inverted)
     AYBABTU_FB=/dev/fb1  pick a specific framebuffer
     AYBABTU_NOSCAN=1   disable CRT scanlines

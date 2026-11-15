@@ -123,6 +123,7 @@ class Display:
     def __init__(self):
         self.sim_dir = os.environ.get("AYBABTU_SIM")
         self.invert = os.environ.get("AYBABTU_INVERT") == "1"
+        self.user_rot = int(os.environ.get("AYBABTU_ROTATE", "0") or 0) % 360
         self.fb = None if self.sim_dir else detect_fb()
         self.frame_no = 0
         if self.fb:
@@ -133,17 +134,38 @@ class Display:
                 Path(self.sim_dir).mkdir(parents=True, exist_ok=True)
 
     @property
-    def size(self):
-        return (self.fb["w"], self.fb["h"]) if self.fb else (400, 240)
+    def logical_size(self):
+        """Portrait canvas to compose in (w<=h), regardless of fb orientation."""
+        if self.fb:
+            a, b = self.fb["w"], self.fb["h"]
+            return (min(a, b), max(a, b))
+        return (240, 320)
+
+    # kept for compatibility
+    size = logical_size
 
     @property
     def info(self):
         if self.fb:
-            return f"{self.fb['dev']} {self.fb['w']}x{self.fb['h']} {self.fb['bpp']}bpp ({self.fb['name']})"
-        return "SIM (no framebuffer)"
+            return (f"{self.fb['dev']} {self.fb['w']}x{self.fb['h']} "
+                    f"{self.fb['bpp']}bpp ({self.fb['name']}) rot={self.user_rot}")
+        return "SIM (no framebuffer) 240x320"
+
+    def _orient(self, img):
+        """Rotate the portrait logical frame to match the physical fb buffer."""
+        fbw, fbh = self.fb["w"], self.fb["h"]
+        total = self.user_rot
+        if fbw > fbh:                       # physical fb is landscape
+            total = (total + 90) % 360
+        if total:
+            img = img.rotate(total, expand=True)
+        if img.size != (fbw, fbh):
+            img = img.resize((fbw, fbh), Image.NEAREST)
+        return img
 
     def show(self, img):
         if self.fb:
+            img = self._orient(img)
             raw = pack_frame(img, self.fb["w"], self.fb["h"], self.fb["bpp"],
                              self.fb["stride"], self.invert)
             self._f.seek(0)
