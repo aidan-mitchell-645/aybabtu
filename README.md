@@ -51,9 +51,16 @@ git clone https://github.com/aidan-mitchell-645/aybabtu.git
 cd aybabtu && ./install.sh          # installs Pillow, adds you to 'video' grp
 python3 ~/aybabtu/aybabtu.py        # run on the console (tty1)
 ```
-The installer prints how to auto-launch at boot. **Run it on the tty that owns
-the Sharp display (tty1), not over SSH** — over SSH there's no framebuffer, so
-use sim mode:
+### Start on boot (pwnagotchi-style)
+```bash
+sudo ./enable-boot.sh        # installs a systemd service that owns tty1
+# undo: sudo ./enable-boot.sh --disable
+```
+This makes AYBABTU launch at boot and take over the Pi's screen, with
+"drop to terminal" and tool output still working on-device. SSH keeps working
+independently so you can always manage it (`sudo systemctl stop aybabtu`).
+
+### Preview without hardware (over SSH / laptop)
 ```bash
 AYBABTU_SIM=/tmp/aybabtu python3 aybabtu.py   # writes PNG frames instead
 ```
