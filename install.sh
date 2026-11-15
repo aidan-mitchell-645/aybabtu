@@ -4,11 +4,17 @@
 # then prints how to auto-start it on the console at boot.
 set -euo pipefail
 
+SRC="$(cd "$(dirname "$0")" && pwd)"
 DEST="${AYBABTU_HOME:-$HOME/aybabtu}"
-echo "[*] installing AYBABTU -> $DEST"
-mkdir -p "$DEST"
-cp -v aybabtu.py aybabtu_tui.py actions.py display.py gfx.py faces.py \
-      campaign.py hw.py menu.json "$DEST"/
+if [ "$SRC" = "$DEST" ]; then
+    echo "[*] running from the install dir ($DEST) -- no copy needed"
+else
+    echo "[*] installing AYBABTU -> $DEST"
+    mkdir -p "$DEST"
+    cp -v "$SRC"/aybabtu.py "$SRC"/aybabtu_tui.py "$SRC"/actions.py \
+          "$SRC"/display.py "$SRC"/gfx.py "$SRC"/faces.py "$SRC"/campaign.py \
+          "$SRC"/hw.py "$SRC"/menu.json "$DEST"/
+fi
 chmod +x "$DEST/aybabtu.py" "$DEST/aybabtu_tui.py"
 
 echo
