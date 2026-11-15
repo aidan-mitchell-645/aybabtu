@@ -1,68 +1,79 @@
 # AYBABTU
 
-A pwnagotchi-style launcher skinned in *All Your Base Are Belong To Us*, built
-for a **Beepy** (Pi Zero 2W + BlackBerry keyboard) running Kali in the
-framebuffer console. Pure Python `curses` — no pip installs, no X server.
+A pwnagotchi-style **pixel-art** launcher skinned in *All Your Base Are Belong
+To Us*, for a **Beepy** (Pi Zero 2W + BlackBerry keyboard) running Kali. It
+renders a real 400×240 graphical UI straight to the framebuffer — a CATS-cat
+mascot that reacts to what you're doing, an icon menu, a battery glyph and CRT
+scanlines — and wraps the Kali tools behind big buttons.
 
-```
- ALL YOUR BASE                       [###--] 84% 21:14
- /\_/\   ZeroBase v0.2
-( -.- )  wlan0 192.168.1.37
- >(_)<   ALL YOUR BASE ARE BELONG TO US
- > 1 RECON    nmap -> exploit leads
-   2 EXPLOIT  msf / searchsploit
-   3 WIFI     interfaces & monitor
-   4 LOOT     saved scan output
-   5 TERMINAL drop to a real shell
-   9 DOCTOR   hardware self-check
-   0 QUIT
-```
+![AYBABTU](docs/idle.png)
 
-The **CATS cat** changes expression as it works — focused while scanning,
-happy when it finds open ports, wired when there are exploits to hunt.
+The cat's face changes with its mood: chill when idle, wide-eyed while
+scanning, wired when there are exploits to hunt.
 
 ## Controls
-- `j`/`k` or up/down — move · number keys — jump · `Enter`/`l` — select
-- `r` — refresh IP/battery · `q`/`0` — quit · `esc` — back out of a sub-menu
+up/down or `j`/`k` move · number keys jump · `Enter`/`→` select · `q` quit
 
 ## What the buttons do
 - **RECON** — pick a target (scope-confirmed), choose an nmap profile, scan.
-  Output auto-saves to `loot/`, then AYBABTU **parses the open services and
-  offers one-tap exploit leads** (searchsploit / msfconsole search). Recon
-  flows straight into exploit.
+  Output auto-saves to `loot/`, then AYBABTU parses the open services and
+  offers **one-tap exploit leads** (searchsploit / msfconsole). Recon flows
+  straight into exploit.
 - **EXPLOIT** — searchsploit lookup or drop into msfconsole.
 - **WIFI** — interfaces + nearby APs.
-- **LOOT** — browse saved scans in `less`.
+- **LOOT** — browse saved scans.
 - **TERMINAL** — real shell, returns to the UI on exit.
-- **DOCTOR** — self-check: battery, display, i2c, wifi, and which tools are
-  installed. Tells you how to fix anything missing.
+- **DOCTOR** — self-check: framebuffer, battery, i2c, wifi, installed tools —
+  with fix-it hints.
+- Plus your own buttons via `menu.json`.
+
+## How it works
+Graphical output is composited with Pillow (`gfx.py`) and blitted to `/dev/fb0`
+(`display.py`), which auto-detects the panel's size and bit-depth (32/16/8/1
+bpp — the mono Sharp LCD is 1-bit). The keyboard is read in raw mode; the UI
+only drops to the text console while a tool actually runs.
+
+| file          | role                                               |
+|---------------|----------------------------------------------------|
+| `aybabtu.py`  | graphical main loop (framebuffer UI)               |
+| `gfx.py`      | 400×240 pixel-art compositor (mascot, icons, menu) |
+| `display.py`  | framebuffer blitter (bpp autodetect) + key input   |
+| `actions.py`  | the button flows (recon→exploit chaining, etc.)    |
+| `campaign.py` | nmap parser → searchsploit lead suggester          |
+| `hw.py`       | battery gauge + `doctor()` hardware self-check      |
+| `faces.py`    | mascot moods + All-Your-Base taunts                |
+| `aybabtu_tui.py` | pure-text curses fallback (no graphics)         |
+| `menu.json`   | your custom buttons (no coding)                    |
 
 ## Install on the Pi
 ```bash
 git clone https://github.com/aidan-mitchell-645/aybabtu.git
-cd aybabtu && ./install.sh
-python3 ~/aybabtu/aybabtu.py
+cd aybabtu && ./install.sh          # installs Pillow, adds you to 'video' grp
+python3 ~/aybabtu/aybabtu.py        # run on the console (tty1)
 ```
-The installer prints two ways to auto-launch at boot (tty1 login line, or a
-systemd service) so it greets you pwnagotchi-style.
+The installer prints how to auto-launch at boot. **Run it on the tty that owns
+the Sharp display (tty1), not over SSH** — over SSH there's no framebuffer, so
+use sim mode:
+```bash
+AYBABTU_SIM=/tmp/aybabtu python3 aybabtu.py   # writes PNG frames instead
+```
 
-## Battery gauge (one-time driver setup)
-The battery lives on the keyboard's RP2040. If `DOCTOR` says the gauge is
-missing, install the Beepy keyboard driver — it publishes
-`/sys/firmware/beepy/battery_percent`, which AYBABTU reads automatically:
+## Display tuning
+| env | effect |
+|-----|--------|
+| `AYBABTU_INVERT=1` | flip black/white (some mono panels are inverted) |
+| `AYBABTU_FB=/dev/fb1` | use a specific framebuffer |
+| `AYBABTU_NOSCAN=1` | turn off CRT scanlines |
+`python3 display.py` prints the detected framebuffer geometry/bpp.
+
+## Battery gauge (one-time)
+If `DOCTOR` says the gauge is missing, install the Beepy keyboard driver — it
+publishes `/sys/firmware/beepy/battery_percent`, which AYBABTU reads
+automatically:
 ```bash
 git clone https://github.com/ardangelo/beepy-kbd
 cd beepy-kbd && make && sudo make install && sudo reboot
 ```
-
-## Files
-| file          | role                                            |
-|---------------|-------------------------------------------------|
-| `aybabtu.py`  | main curses UI + actions                        |
-| `faces.py`    | the CATS mascot + mood/taunt engine             |
-| `campaign.py` | nmap output parser → searchsploit lead suggester|
-| `hw.py`       | battery gauge + `doctor()` hardware self-check   |
-| `menu.json`   | your custom buttons (no coding needed)          |
 
 ## Adding your own buttons
 Edit `menu.json`. `{t}`/`{target}` is replaced with the target you type; set
@@ -77,6 +88,5 @@ Recon makes you type `YES` to confirm the target is yours or you're authorized
 to test it. Only scan and exploit what you own or have written permission to touch.
 
 ## Roadmap
-- True framebuffer bitmap faces as an idle "screensaver" mode
-- Per-host loot notes & a campaign history view
-- Signal-strength driven mood (weak wifi = grumpy CATS)
+- Framebuffer-native idle animation (mascot blinking as a screensaver)
+- Signal-strength driven mood · per-host loot notes · campaign history
