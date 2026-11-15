@@ -21,8 +21,8 @@ echo
 echo "[*] dependency: Pillow (pixel-art rendering). numpy is optional (faster"
 echo "    565 packing). Installing via apt..."
 sudo apt-get update -qq || true
-sudo apt-get install -y python3-pil python3-numpy || \
-    pip3 install --break-system-packages pillow numpy || true
+sudo apt-get install -y python3-pil python3-numpy python3-evdev || \
+    pip3 install --break-system-packages pillow numpy evdev || true
 
 # framebuffer access: writing /dev/fb0 needs the 'video' group (or root)
 if ! id -nG "$USER" | grep -qw video; then
@@ -62,6 +62,12 @@ AUTO-START ON BOOT (greets you pwnagotchi-style on tty1):
     [Install]
     WantedBy=multi-user.target
   then: sudo systemctl enable --now aybabtu
+
+INPUT: by default, when run as root AYBABTU reads the input devices directly
+  (evdev) so the Beepy keyboard + trackpad-mapped arrows drive it even over SSH.
+    AYBABTU_INPUT=tty    force reading only this terminal (e.g. laptop preview)
+    AYBABTU_INPUT=evdev  force device reading
+  A left-click (mapped to Tab) selects the highlighted item.
 
 DISPLAY TUNING (if orientation/colours look wrong):
     AYBABTU_ROTATE=90  rotate UI 0/90/180/270 (fix sideways/upside-down)

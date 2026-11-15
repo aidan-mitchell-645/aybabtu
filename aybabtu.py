@@ -68,7 +68,7 @@ def run_action(disp, kb, state, item):
     act = item["action"]
     if act == "quit":
         raise SystemExit
-    kb.restore()
+    kb.suspend()
     os.system("clear")
     print("\033[1;32m== AYBABTU ==\033[0m\n")
     try:
@@ -80,7 +80,7 @@ def run_action(disp, kb, state, item):
         pass
     finally:
         os.system("clear")
-        kb.cbreak()
+        kb.resume()
         if state["mood"] == "scanning":   # don't get stuck mid-scan face
             state["mood"] = "idle"
 
@@ -133,7 +133,7 @@ def main():
     except (KeyboardInterrupt, SystemExit):
         pass
     finally:
-        kb.restore()
+        kb.close()
         disp.close()
         os.system("clear")
         print("CATS: YOU HAVE NO CHANCE TO SURVIVE MAKE YOUR TIME. (bye)")

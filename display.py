@@ -195,26 +195,96 @@ class Display:
                 pass
 
 
+def _input_mode():
+    """'evdev' (read input devices directly -- works over SSH) or 'tty'."""
+    if os.environ.get("AYBABTU_SIM"):
+        return "tty"
+    m = os.environ.get("AYBABTU_INPUT") or _settings().get("input") or "auto"
+    if m in ("evdev", "tty"):
+        return m
+    # auto: use evdev when we're root and python3-evdev is available
+    try:
+        import evdev  # noqa: F401
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            return "evdev"
+    except Exception:
+        pass
+    return "tty"
+
+
 # --------------------------------------------------------------- Keyboard ----
 class Keyboard:
-    """Non-blocking raw-tty key reader. Returns tokens; None if nothing ready."""
+    """Non-blocking key reader -> tokens (UP/DOWN/ENTER/ESC/digits/letters).
+
+    Two backends: a raw-tty reader (keys typed into this terminal), and an
+    evdev reader that reads the input devices directly, so the Beepy keyboard
+    and the trackpad->arrows mapping drive the UI even when launched over SSH.
+    """
     def __init__(self):
+        import collections
         self.fd = sys.stdin.fileno()
         self.saved = None
+        self.evdevs = None
+        self._q = collections.deque()
+        # always put the tty in cbreak (stops stray echo); harmless if not a tty
         try:
             self.saved = termios.tcgetattr(self.fd)
             tty.setcbreak(self.fd)
         except Exception:
-            self.saved = None  # not a tty (piped) -- get() will no-op
+            self.saved = None
+        if _input_mode() == "evdev":
+            self._init_evdev()
 
-    def cbreak(self):
-        """Re-enter raw mode (after a console action restored cooked mode)."""
+    # ---- evdev backend ----
+    def _init_evdev(self):
         try:
-            tty.setcbreak(self.fd)
+            import evdev
+            self._ev = evdev
+            ec = evdev.ecodes
+            self._map = {
+                ec.KEY_UP: "UP", ec.KEY_DOWN: "DOWN", ec.KEY_LEFT: "LEFT",
+                ec.KEY_RIGHT: "RIGHT", ec.KEY_ENTER: "ENTER",
+                ec.KEY_KPENTER: "ENTER", ec.KEY_TAB: "ENTER",  # click = select
+                ec.KEY_ESC: "ESC", ec.KEY_BACKSPACE: "BACKSPACE",
+                ec.KEY_Q: "q", ec.KEY_J: "j", ec.KEY_K: "k",
+                ec.KEY_L: "l", ec.KEY_R: "r",
+            }
+            for n in range(10):
+                self._map[getattr(ec, f"KEY_{n}")] = str(n)
+            devs = []
+            for path in evdev.list_devices():
+                try:
+                    d = evdev.InputDevice(path)
+                except Exception:
+                    continue
+                keys = d.capabilities().get(ec.EV_KEY, [])
+                if ec.KEY_ENTER in keys or ec.KEY_UP in keys or ec.KEY_A in keys:
+                    devs.append(d)
+            self.evdevs = devs or None
         except Exception:
-            pass
+            self.evdevs = None   # fall back to tty reader
 
+    def _pump(self, timeout):
+        r, _, _ = select.select(self.evdevs, [], [], timeout)
+        for d in r:
+            try:
+                for ev in d.read():
+                    if ev.type == self._ev.ecodes.EV_KEY and ev.value == 1:
+                        tok = self._map.get(ev.code)
+                        if tok:
+                            self._q.append(tok)
+            except OSError:
+                pass
+
+    # ---- shared API ----
     def get(self, timeout=0.1):
+        if self.evdevs:
+            if not self._q:
+                self._pump(timeout)
+            return self._q.popleft() if self._q else None
+        return self._get_tty(timeout)
+
+    def _get_tty(self, timeout):
         try:
             r, _, _ = select.select([self.fd], [], [], timeout)
         except Exception:
@@ -224,7 +294,7 @@ class Keyboard:
         ch = os.read(self.fd, 1)
         if not ch:
             return None
-        if ch == b"\x1b":  # escape or arrow sequence
+        if ch == b"\x1b":
             r, _, _ = select.select([self.fd], [], [], 0.02)
             if not r:
                 return "ESC"
@@ -240,6 +310,33 @@ class Keyboard:
         except Exception:
             return None
 
+    def suspend(self):
+        """Hand the tty back to cooked mode so a console action can input()."""
+        self.restore()
+
+    def resume(self):
+        """Return to UI input mode; drop any keys buffered during the action."""
+        try:
+            termios.tcflush(self.fd, termios.TCIFLUSH)
+        except Exception:
+            pass
+        self.cbreak()
+        self._q.clear()
+        if self.evdevs:                      # drain stale device events
+            try:
+                r, _, _ = select.select(self.evdevs, [], [], 0)
+                for d in r:
+                    for _ in d.read():
+                        pass
+            except Exception:
+                pass
+
+    def cbreak(self):
+        try:
+            tty.setcbreak(self.fd)
+        except Exception:
+            pass
+
     def restore(self):
         if self.saved:
             try:
@@ -247,9 +344,18 @@ class Keyboard:
             except Exception:
                 pass
 
+    def close(self):
+        self.restore()
+        for d in (self.evdevs or []):
+            try:
+                d.close()
+            except Exception:
+                pass
+
 
 if __name__ == "__main__":
     d = Display()
     print("display:", d.info)
+    print("input mode:", _input_mode())
     fb = detect_fb()
     print("detect_fb:", fb)
