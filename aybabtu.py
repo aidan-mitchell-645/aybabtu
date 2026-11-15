@@ -87,8 +87,10 @@ def run_action(disp, kb, state, item):
 
 def main():
     disp = display.Display()
+    if disp.fb is None and not disp.sim_dir:
+        sys.stderr.write("[aybabtu] waiting for framebuffer /dev/fb0...\n")
+        sys.stderr.flush()
     kb = display.Keyboard()
-    size = disp.logical_size
     items = load_menu()
     state = {"mood": "boot", "ip": "...", "iface": "...", "batt_pct": None,
              "clock": "--:--", "menu": items, "sel": 0, "say": None,
@@ -108,7 +110,7 @@ def main():
             if now - last_status > 10:
                 refresh_state(state); last_status = now
 
-            disp.show(gfx.compose(state, size))
+            disp.show(gfx.compose(state, disp.logical_size))
 
             key = kb.get(timeout=0.4)
             tick += 1

@@ -20,6 +20,7 @@ import os
 import select
 import sys
 import termios
+import time
 import tty
 from pathlib import Path
 
@@ -136,14 +137,28 @@ class Display:
         self.invert = (inv == "1") if inv is not None else bool(s.get("invert", False))
         rot = os.environ.get("AYBABTU_ROTATE")
         self.user_rot = int(rot if rot is not None else s.get("rotate", 0) or 0) % 360
-        self.fb = None if self.sim_dir else detect_fb()
+        self.fb = None
+        self._f = None
         self.frame_no = 0
-        if self.fb:
-            self._f = open(self.fb["dev"], "r+b")
+        self._last_probe = 0.0
+        if self.sim_dir:
+            Path(self.sim_dir).mkdir(parents=True, exist_ok=True)
         else:
+            self._open()   # may be None if fb isn't up yet (early boot)
+
+    def _open(self):
+        """(Re)detect and open the framebuffer. Safe to call repeatedly."""
+        fb = detect_fb()
+        if not fb:
+            return False
+        try:
+            self._f = open(fb["dev"], "r+b")
+            self.fb = fb
+            return True
+        except Exception:
+            self.fb = None
             self._f = None
-            if self.sim_dir:
-                Path(self.sim_dir).mkdir(parents=True, exist_ok=True)
+            return False
 
     @property
     def logical_size(self):
@@ -161,7 +176,9 @@ class Display:
         if self.fb:
             return (f"{self.fb['dev']} {self.fb['w']}x{self.fb['h']} "
                     f"{self.fb['bpp']}bpp ({self.fb['name']}) rot={self.user_rot}")
-        return "SIM (no framebuffer) 240x320"
+        if self.sim_dir:
+            return "SIM (no framebuffer) 240x320"
+        return "waiting for framebuffer (/dev/fb0 not ready)"
 
     def _orient(self, img):
         """Rotate the portrait logical frame to match the physical fb buffer."""
@@ -176,16 +193,27 @@ class Display:
         return img
 
     def show(self, img):
-        if self.fb:
-            img = self._orient(img)
-            raw = pack_frame(img, self.fb["w"], self.fb["h"], self.fb["bpp"],
-                             self.fb["stride"], self.invert)
+        if self.sim_dir:
+            img.save(os.path.join(self.sim_dir, "frame.png"))
+            self.frame_no += 1
+            return
+        if self.fb is None:            # self-heal: framebuffer not up yet
+            now = time.time()
+            if now - self._last_probe > 1.0:
+                self._last_probe = now
+                self._open()
+            if self.fb is None:
+                return                 # nothing to draw to yet; try again next frame
+        img = self._orient(img)
+        raw = pack_frame(img, self.fb["w"], self.fb["h"], self.fb["bpp"],
+                         self.fb["stride"], self.invert)
+        try:
             self._f.seek(0)
             self._f.write(raw)
             self._f.flush()
-        elif self.sim_dir:
-            img.save(os.path.join(self.sim_dir, "frame.png"))
-            self.frame_no += 1
+        except Exception:
+            self.fb = None             # device went away; re-probe next frame
+            self._f = None
 
     def close(self):
         if self._f:

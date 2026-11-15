@@ -26,11 +26,16 @@ echo "[*] installing $UNIT  (app: $APP_DIR)"
 cat > "$UNIT" <<EOF
 [Unit]
 Description=AYBABTU launcher
-After=systemd-user-sessions.service getty@tty1.service network-online.target
+After=systemd-user-sessions.service getty@tty1.service
 Conflicts=getty@tty1.service
+# never stop retrying (don't fall into a dead state that blanks the screen)
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+# wait for the framebuffer to actually exist before starting (fixes blank
+# screen when the service races the display driver at boot)
+ExecStartPre=/bin/sh -c 'for i in \$(seq 1 60); do [ -s /sys/class/graphics/fb0/virtual_size ] && exit 0; sleep 0.5; done; exit 0'
 ExecStart=/usr/bin/python3 $APP_DIR/aybabtu.py
 WorkingDirectory=$APP_DIR
 User=root
@@ -39,7 +44,7 @@ RestartSec=2
 # own the console so "drop to terminal" and tool output work on the screen
 StandardInput=tty
 StandardOutput=tty
-StandardError=tty
+StandardError=journal
 TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
