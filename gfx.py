@@ -158,69 +158,89 @@ STATUS = {"boot": "BOOTING", "idle": "READY", "scanning": "SCANNING",
 
 
 # ----------------------------------------------------------------- compose ----
+def _vcenter_text(base, x_center, y, s, color, scale):
+    img = _text_img(s, color, scale)
+    base.alpha_composite(img, (int(x_center - img.width // 2), int(y)))
+    return img.height
+
+
 def compose(state, size=(240, 320)):
+    """Proportional layout: fills any panel size (mascot scales, menu expands)."""
     w, h = size
     base = Image.new("RGBA", (w, h), BG + (255,))
     d = ImageDraw.Draw(base)
     cx = w // 2
+    fs = 2 if w < 300 else (3 if w < 460 else 4)     # font scale by width
 
     # ---- top status bar ----
-    d.rectangle([0, 0, w - 1, 20], fill=PANEL)
+    th = max(20, h // 16)
+    d.rectangle([0, 0, w - 1, th - 1], fill=PANEL)
     pct = state.get("batt_pct")
-    base.alpha_composite(battery_icon(pct, FG), (5, 5))
-    _blit_text(base, (28, 3), (f"{pct}%" if pct is not None else "--"), FG, 2)
-    _blit_text(base, (0, 5), "ZeroBase", DIM, 1, center_x=cx)
-    clk = _text_img(state.get("clock", "--:--"), ACC, 2)
-    base.alpha_composite(clk, (w - clk.width - 6, 3))
+    bi = battery_icon(pct, FG, scale=max(2, fs - 1))
+    base.alpha_composite(bi, (5, (th - bi.height) // 2))
+    ptxt = _text_img(f"{pct}%" if pct is not None else "--", FG, fs)
+    base.alpha_composite(ptxt, (5 + bi.width + 6, (th - ptxt.height) // 2))
+    zb = _text_img("ZeroBase", DIM, max(1, fs - 1))
+    base.alpha_composite(zb, (cx - zb.width // 2, (th - zb.height) // 2))
+    clk = _text_img(state.get("clock", "--:--"), ACC, fs)
+    base.alpha_composite(clk, (w - clk.width - 6, (th - clk.height) // 2))
 
-    # ---- mascot ----
-    mh_top = 26
-    v = villain(state.get("mood", "idle"), state.get("frame", 0), scale=5)
+    y = th + max(4, h // 60)
+
+    # ---- mascot (scaled to ~30% of height) ----
+    mscale = max(3, int((h * 0.30) / len(_VILLAIN)))
+    v = villain(state.get("mood", "idle"), state.get("frame", 0), scale=mscale)
     vx = cx - v.width // 2
-    # subtle orange backdrop glow behind the head (Zero Wing vibe)
-    d.rectangle([vx + 8, mh_top + 6, vx + v.width - 8, mh_top + v.height - 18],
+    d.rectangle([vx + mscale * 2, y + mscale,
+                 vx + v.width - mscale * 2, y + v.height - mscale * 3],
                 fill=(40, 22, 6))
-    base.alpha_composite(v, (vx, mh_top))
+    base.alpha_composite(v, (vx, y))
+    y += v.height + max(3, h // 80)
 
     # ---- status word ----
-    sy = mh_top + v.height + 4
-    word = state.get("say") or STATUS.get(state.get("mood", "idle"), "")
-    _blit_text(base, (0, sy), word, ACC, 2, center_x=cx)
+    y += _vcenter_text(base, cx, y, state.get("say")
+                       or STATUS.get(state.get("mood", "idle"), ""), ACC, fs + 1)
+    y += max(2, h // 100)
 
     # ---- identity line ----
-    iy = sy + 20
-    _blit_text(base, (0, iy), f"{state.get('iface','net')} {state.get('ip','0.0.0.0')}",
-               FG, 1, center_x=cx)
+    y += _vcenter_text(base, cx, y,
+                       f"{state.get('iface','net')} {state.get('ip','0.0.0.0')}",
+                       FG, max(1, fs - 1))
+    y += max(3, h // 80)
 
     # ---- divider ----
-    dy = iy + 16
-    d.line([(8, dy), (w - 8, dy)], fill=DIM)
+    d.line([(8, y), (w - 8, y)], fill=DIM)
+    y += max(4, h // 90)
 
-    # ---- vertical menu ----
+    # ---- vertical menu: rows expand to fill the remaining height ----
     items = state.get("menu", [])
     sel = state.get("sel", 0)
-    y0 = dy + 6
-    rowh = 19
-    avail = max(1, (h - 2 - y0) // rowh)
+    menu_top = y
+    space = h - 2 - menu_top
+    n = max(1, len(items))
+    rowh = max(16, min(46, space // n))
+    mfs = 1 if rowh < 18 else (2 if rowh < 34 else 3)   # font that fits the row
+    avail = max(1, space // rowh)
     top = 0
     if len(items) > avail:
         top = min(max(0, sel - avail // 2), len(items) - avail)
     for r, i in enumerate(range(top, min(len(items), top + avail))):
         it = items[i]
-        y = y0 + r * rowh
+        ry = menu_top + r * rowh
         selected = (i == sel)
         if selected:
-            d.rectangle([4, y - 1, w - 5, y + rowh - 3], fill=ACC)
+            d.rectangle([4, ry, w - 5, ry + rowh - 2], fill=ACC)
         txtcol = BG if selected else FG
-        ic = icon(it["label"], BG if selected else FG, scale=3)
-        base.alpha_composite(ic, (10, y + 1))
-        _blit_text(base, (32, y + 2), it["label"], txtcol, 2)
+        ic = icon(it["label"], BG if selected else FG, scale=mfs)
+        base.alpha_composite(ic, (10, ry + (rowh - ic.height) // 2))
+        lbl = _text_img(it["label"], txtcol, mfs)
+        base.alpha_composite(lbl, (18 + ic.width, ry + (rowh - lbl.height) // 2))
 
     # ---- scanlines ----
     if state.get("scanlines", True):
         ov = Image.new("RGBA", (w, h), (0, 0, 0, 0))
         od = ImageDraw.Draw(ov)
-        for yy in range(22, h, 4):
+        for yy in range(th + 2, h, 4):
             od.line([(0, yy), (w, yy)], fill=(0, 0, 0, 90))
         base.alpha_composite(ov)
     return base.convert("RGB")
