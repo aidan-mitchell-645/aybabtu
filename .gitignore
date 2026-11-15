@@ -1,0 +1,6 @@
+# runtime junk
+__pycache__/
+*.pyc
+# scan output / captures stay local
+loot/
+*.log

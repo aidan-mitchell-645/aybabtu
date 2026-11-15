@@ -1,0 +1,24 @@
+{
+  "_comment": "Add your own buttons here. {t} / {target} gets replaced with the target you type. Set needs_scope=true to force the 'are you authorized' confirm before it runs.",
+  "tools": [
+    {
+      "key": "6",
+      "label": "WHOAMI",
+      "desc": "quick box self-check",
+      "cmd": "echo HOST: $(hostname); id; ip -brief addr; uptime"
+    },
+    {
+      "key": "7",
+      "label": "ARPSCAN",
+      "desc": "who's on the LAN",
+      "cmd": "sudo arp-scan --localnet 2>/dev/null || sudo nmap -sn $(ip route | awk '/default/{print $3}')/24"
+    },
+    {
+      "key": "8",
+      "label": "HTTPX",
+      "desc": "grab a web banner",
+      "needs_scope": true,
+      "cmd": "curl -sS -I http://{t} || echo no-response"
+    }
+  ]
+}
