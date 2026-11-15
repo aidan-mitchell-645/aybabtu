@@ -34,6 +34,15 @@ def _read(path, default=""):
         return default
 
 
+def _settings():
+    """Persistent display prefs (rotate/invert). Env vars override these."""
+    import json
+    try:
+        return json.loads((Path(__file__).resolve().parent / "settings.json").read_text())
+    except Exception:
+        return {}
+
+
 def detect_fb():
     """Return dict(dev,w,h,bpp,stride,name) for the first usable fb, or None."""
     forced = os.environ.get("AYBABTU_FB")
@@ -121,9 +130,12 @@ def pack_frame(img, w, h, bpp, stride, invert=False):
 # --------------------------------------------------------------- Display -----
 class Display:
     def __init__(self):
+        s = _settings()
         self.sim_dir = os.environ.get("AYBABTU_SIM")
-        self.invert = os.environ.get("AYBABTU_INVERT") == "1"
-        self.user_rot = int(os.environ.get("AYBABTU_ROTATE", "0") or 0) % 360
+        inv = os.environ.get("AYBABTU_INVERT")
+        self.invert = (inv == "1") if inv is not None else bool(s.get("invert", False))
+        rot = os.environ.get("AYBABTU_ROTATE")
+        self.user_rot = int(rot if rot is not None else s.get("rotate", 0) or 0) % 360
         self.fb = None if self.sim_dir else detect_fb()
         self.frame_no = 0
         if self.fb:

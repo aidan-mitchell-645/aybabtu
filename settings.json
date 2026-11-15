@@ -1,0 +1,5 @@
+{
+  "_comment": "Display prefs for your panel. Env vars (AYBABTU_ROTATE/AYBABTU_INVERT) override these. rotate: 0/90/180/270. invert: flip black/white.",
+  "rotate": 180,
+  "invert": false
+}
