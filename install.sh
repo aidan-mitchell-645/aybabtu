@@ -7,7 +7,7 @@ set -euo pipefail
 DEST="${AYBABTU_HOME:-$HOME/aybabtu}"
 echo "[*] installing AYBABTU -> $DEST"
 mkdir -p "$DEST"
-cp -v aybabtu.py menu.json "$DEST"/
+cp -v aybabtu.py faces.py campaign.py hw.py menu.json "$DEST"/
 chmod +x "$DEST/aybabtu.py"
 
 cat <<EOF
@@ -44,4 +44,8 @@ AUTO-START ON BOOT (so it greets you like a pwnagotchi):
 
 Optional tools that make the menu richer (Kali usually has nmap already):
     sudo apt install -y nmap arp-scan exploitdb metasploit-framework
+
+Battery gauge not showing (DOCTOR says so)? Install the Beepy keyboard driver:
+    git clone https://github.com/ardangelo/beepy-kbd
+    cd beepy-kbd && make && sudo make install && sudo reboot
 EOF
